@@ -91,7 +91,7 @@ class PolicyEvaluation:
         self.values = {key: 0 for key in self.mdp.get_states()}
 
 class DeterministicPolicy:
-    def __init__(self, actions):
+    def __init__(self, actions=dict()):
         self.actions = actions
     
     def act(self, state):
@@ -123,6 +123,47 @@ class PolicyIteration:
         for _ in range(num_iter):
             self.step()
         return self.policy
+
+class ValueIteration:
+    def __init__(self, mdp):
+        self.mdp = mdp
+        self.values = {key: 0 for key in self.mdp.get_states()}
+
+    def step(self):
+        new_values = {key: 0 for key in self.mdp.get_states()}
+        for s in self.mdp.get_states():
+            if self.mdp.is_terminal(s):
+                continue
+            Q_values = {key: 0 for key in self.mdp.get_actions()}
+            for action in self.mdp.get_actions():
+                info = self.mdp.get_info(s, action)
+                for var in info:
+                    next_s = var[0]
+                    prob = var[1]
+                    if prob > 0:
+                        Q_values[action] += prob * (-1 + self.values[next_s])
+            new_values[s] = max(Q_values.values())
+        self.values = new_values
+    
+    def run(self, num_iter):
+        for _ in range(num_iter):
+            self.step()
+    
+    def get_policy(self):
+        policy = DeterministicPolicy()
+        for s in self.mdp.get_states():
+            Q_values = {key: 0 for key in self.mdp.get_actions()}
+            for action in self.mdp.get_actions():
+                info = self.mdp.get_info(s, action)
+                for var in info:
+                    next_s = var[0]
+                    prob = var[1]
+                    if prob > 0:
+                        Q_values[action] += prob * (-1 + self.values[next_s])
+            best_action = max(Q_values, key=Q_values.get)
+            policy.actions[s] = best_action
+        return policy
+
                         
 
 
@@ -138,19 +179,23 @@ def play_game(mdp:TramMDP, policy):
 def main(args=None):
     mdp = TramMDP(0.5)
     # policy = SimplestPolicy("walk")
-    actions = dict()
-    for i in range(1, 11):
-        if i == 1:
-            actions[i] = "tram"
-        else:
-            actions[i] = "tram"
-    policy = DeterministicPolicy(actions)
+    # actions = dict()
+    # for i in range(1, 11):
+    #     if i == 1:
+    #         actions[i] = "tram"
+    #     else:
+    #         actions[i] = "tram"
+    # policy = DeterministicPolicy(actions)
     # # play_game(mdp, policy)
     # evaluator = PolicyEvaluation(mdp, policy)
     # print(evaluator.evaluate(1000))
-    policy_iter = PolicyIteration(mdp, policy)
-    final_policy = policy_iter.run(100)
-    print(final_policy.actions)
+    # policy_iter = PolicyIteration(mdp, policy)
+    # final_policy = policy_iter.run(100)
+    # print(final_policy.actions)
+    value_iter = ValueIteration(mdp)
+    value_iter.run(100)
+    policy = value_iter.get_policy()
+    print(policy.actions)
     
 if __name__ == '__main__':
     main()
