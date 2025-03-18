@@ -62,7 +62,7 @@ class PolicyEvaluation:
         self.values = {key: 0 for key in self.mdp.get_states()}
     
     def play_game(self):
-        while not self.mdp.is_terminal():
+        while not self.mdp.is_terminal(self.mdp.get_state()):
             action = self.policy.act(self.mdp.get_state())
             state, _ = self.mdp.step(action)
     
@@ -83,9 +83,12 @@ class PolicyEvaluation:
             max_diff = max(abs(self.values[key] - new_values[key]) for key in self.values)
             self.values = copy.deepcopy(new_values)
             if max_diff < 1e-3:
-                print(f"Total number of iterations: {iteration}")
+                # print(f"Total number of iterations: {iteration}")
                 break
-        print(self.values)
+        return self.values
+    
+    def reset(self):
+        self.values = {key: 0 for key in self.mdp.get_states()}
 
 class DeterministicPolicy:
     def __init__(self, actions):
@@ -93,6 +96,35 @@ class DeterministicPolicy:
     
     def act(self, state):
         return self.actions[state]
+
+class PolicyIteration:
+    def __init__(self, mdp, policy):
+        self.mdp = mdp
+        self.policy = policy
+    
+    def step(self):
+        evaluator = PolicyEvaluation(self.mdp, self.policy)
+        values = evaluator.evaluate(1000)
+        for s in self.mdp.get_states():
+            if self.mdp.is_terminal(s):
+                continue
+            Q_values = {key: 0 for key in self.mdp.get_actions()}
+            for action in self.mdp.get_actions():
+                info = self.mdp.get_info(s, action)
+                for var in info:
+                    next_s = var[0]
+                    prob = var[1]
+                    if prob > 0:
+                        Q_values[action] += prob * (-1 + values[next_s])
+            best_action = max(Q_values, key=Q_values.get)
+            self.policy.actions[s] = best_action
+    
+    def run(self, num_iter):
+        for _ in range(num_iter):
+            self.step()
+        return self.policy
+                        
+
 
 def play_game(mdp:TramMDP, policy):
     print(f"State = {mdp.get_state()}")
@@ -104,18 +136,21 @@ def play_game(mdp:TramMDP, policy):
     print(f"Terminal state. Utility = {mdp.utility}")
 
 def main(args=None):
-    mdp = TramMDP(0.3)
+    mdp = TramMDP(0.5)
     # policy = SimplestPolicy("walk")
     actions = dict()
     for i in range(1, 11):
         if i == 1:
-            actions[i] = "walk"
+            actions[i] = "tram"
         else:
             actions[i] = "tram"
     policy = DeterministicPolicy(actions)
-    # play_game(mdp, policy)
-    evaluator = PolicyEvaluation(mdp, policy)
-    evaluator.evaluate(1000)
+    # # play_game(mdp, policy)
+    # evaluator = PolicyEvaluation(mdp, policy)
+    # print(evaluator.evaluate(1000))
+    policy_iter = PolicyIteration(mdp, policy)
+    final_policy = policy_iter.run(100)
+    print(final_policy.actions)
     
 if __name__ == '__main__':
     main()
